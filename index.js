@@ -2,10 +2,11 @@ import Express from "express";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import mongodb from "mongodb";
-import mongoose from "mongoose";
+// import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { User } from "./models/Users.js";
 import { Booking } from "./models/Booking.js";
+import Razorpay from "razorpay";
 
 dotenv.config();
 const PORT = process.env.port || 5000;
@@ -16,6 +17,12 @@ const app = Express();
 app.use(cors());
 app.use(Express.json());
 app.use(Express.urlencoded({ extended: true }));
+
+//Razorpay setup
+const razorpay = new Razorpay({
+    key_id: process.env.KEY_ID,
+    key_secret: process.env.KEY_SECRET
+});
 
 
 app.get("/", (req, res) => {
@@ -34,9 +41,9 @@ app.post("/register", async (req, res) => {
         //Hashing password
         let hashedPassword = await bcrypt.hash(password, salt);
     
-        console.log("email = " + email);
-        console.log("password = " + password);
-        console.log("hashed password = " + hashedPassword);
+        // console.log("email = " + email);
+        // console.log("password = " + password);
+        // console.log("hashed password = " + hashedPassword);
         
         //Saving New User data into DB
         let user = new User({
@@ -48,7 +55,7 @@ app.post("/register", async (req, res) => {
         let checkUser = await db.collection("users").find({
             email: email}).count();
         
-        console.log("Check User: ", checkUser);
+        // console.log("Check User: ", checkUser);
         if(checkUser) {
             res.status(201).json({message: "Email already exists"});
         }
@@ -88,13 +95,15 @@ app.post("/login", async (req, res) => {
         let user = await db.collection("users").findOne({
             email: email
         });
+        // console.log("user cred = ", user);
         
-        console.log("Check User: ", user);
-        if(!user) {
+        // console.log("Check User: ", user);
+        if(user == null) {
             res.status(201).json({message: "Email does not exists"});
         }
         else {
             const isMatch = await bcrypt.compare(password, user.password);
+            // console.log("ismatch = ", isMatch);
             if(isMatch) {
                 return res.status(200).json({message: "Login Successful"});
             }
@@ -114,16 +123,16 @@ app.post("/login", async (req, res) => {
 app.post("/book", async (req, res) => {
     let email = req.body.email;
     let car = req.body.car;
-    let startDate = req.body.startDate.substr(0, 10);
-    let endDate = req.body.endDate.substr(0, 10);
+    let startDate = req.body.startDate;
+    let endDate = req.body.endDate;
     let fare = req.body.fare;
     let paid = req.body.paid;
-    console.log(email);
-    console.log(car);
-    console.log(startDate);
-    console.log(endDate);
-    console.log(fare);
-    console.log(paid)
+    // console.log(email);
+    // console.log(car);
+    // console.log(startDate);
+    // console.log(endDate);
+    // console.log(fare);
+    // console.log(paid);
 
     try {
         const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
@@ -157,7 +166,7 @@ app.post("/book", async (req, res) => {
 });
 
 //Fetching booking details for payment
-app.post("/pay", async (req, res) => {
+app.post("/bookingDetails", async (req, res) => {
     let email = req.body.email;
 
     try {
@@ -180,6 +189,54 @@ app.post("/pay", async (req, res) => {
         res.status(300).send(err);
     }
 
+});
+
+//Fetching orderID from Razorpay
+app.post("/order", (req, res) => {
+    let options = {
+        amount: req.body.amount,  // amount in the smallest currency unit
+        currency: "INR"
+    };
+
+    razorpay.orders.create(options, function(err, order) {
+        console.log(order);
+        res.json(order);
+    });      
+});
+
+//Checking the status of the payment
+app.post("/paymentStatus", (req, res) => {
+    razorpay.payments.fetch(req.body.razorpay_payment_id)
+    .then((resp) => {
+        if(resp.status == "captured") {
+            return res.status(200).json("Payment successful!");
+        }
+        else {
+            return res.status(404).json("Payment failed!");
+        }
+    })
+});
+
+//Fetch all users data for admin
+app.get("/getUsers", async (req, res) => {
+    try {
+        const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
+        let db = client.db("RentalServices");
+
+        let allUsers = await db.collection("users").find().toArray();
+        if(allUsers) {
+            console.log(allUsers);
+            res.status(200).json(allUsers);
+        }
+        else {
+            res.status(202).json({allUsers: "No user found."});
+        }
+    }
+    catch(err) {
+        console.log("Error: ", err);
+        res.status(300).send(err);
+    }
+    
 })
 
 
