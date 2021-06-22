@@ -67,7 +67,7 @@ app.post("/register", async (req, res) => {
                 res.status(202).json({message: "Unable to signup"});
             }
             else {
-                console.log("New user signed up:", newUser.ops[0].email);
+                // console.log("New user signed up:", newUser.ops[0].email);
                 res.status(200).send("Sign up successful");
                 client.close();
             }                
@@ -111,12 +111,12 @@ app.post("/login", async (req, res) => {
                 return res.status(202).json({message: "Incorrect password"});
             }
         }              
+        client.close();
     }
     catch(err) {
         console.log("Error: ", err);
         res.status(300).send(err);
     }
-    client.close();
 });
 
 //Saving Booking Details in DB
@@ -177,11 +177,12 @@ app.post("/bookingDetails", async (req, res) => {
             email: email,
             paid: false
         });
-        if(booking) {
-            res.json({booking: booking});
+        console.log("BookingDetails = ", booking)
+        if(booking == null) {
+            res.json({message: "No booking"});
         }
-        else {
-            res.json({message: "No booking."});
+        else if(booking) {
+            res.json({message: booking});
         }
     }
     catch(err) {
@@ -191,6 +192,32 @@ app.post("/bookingDetails", async (req, res) => {
 
 });
 
+//Updating paid to true after payment
+app.post("/", async (req, res) => {
+    // console.log("Put request");
+    let email = req.body.email;
+    try {
+        const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
+        let db = client.db("RentalServices");
+        const filter = {email: email};
+        const updateRecord = {
+            $set: {
+                paid: true
+            }
+        };
+
+        let booking = await db.collection("bookings").updateOne(filter, updateRecord);
+        if(booking) {
+            // console.log("booked and paid");
+        }
+    }
+    catch(err) {
+        console.log("Error: ", err);
+        res.status(300).send(err);
+    }
+
+})
+
 //Fetching orderID from Razorpay
 app.post("/order", (req, res) => {
     let options = {
@@ -199,13 +226,13 @@ app.post("/order", (req, res) => {
     };
 
     razorpay.orders.create(options, function(err, order) {
-        console.log(order);
+        // console.log(order);
         res.json(order);
     });      
 });
 
 //Checking the status of the payment
-app.post("/paymentStatus", (req, res) => {
+app.post("/", (req, res) => {
     razorpay.payments.fetch(req.body.razorpay_payment_id)
     .then((resp) => {
         if(resp.status == "captured") {
@@ -223,9 +250,12 @@ app.get("/getUsers", async (req, res) => {
         const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
         let db = client.db("RentalServices");
 
-        let allUsers = await db.collection("users").find().toArray();
+        let allUsers = [];
+        await db.collection("users").find().forEach((user) => {
+            allUsers.push(user.email);
+        });
+        console.log("All users: ", allUsers);
         if(allUsers) {
-            console.log(allUsers);
             res.status(200).json(allUsers);
         }
         else {
@@ -239,5 +269,51 @@ app.get("/getUsers", async (req, res) => {
     
 })
 
+//Fetching booking history from DB
+app.get("/bookingHistory", async (req, res) => {
+    try {
+        const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
+        let db = client.db("RentalServices");
+        
+        let bookingDetails = [];
+        let bookings = db.collection("bookings").find({}).toArray((err, data) => {
+            if(err) console.log("error = ", err);
+            else {
+                res.status(200).json({"bookings": data});
+            }
+        });
+        console.log(bookings);
+        // bookings.map((booking) => {
+        //     // let details = {
+        //     //     email: booking.email,
+        //     //     car: booking.car,
+        //     //     startDate: booking.startDate,
+        //     //     endDate: booking.endDate,
+        //     //     fare: booking.fare,
+        //     //     payment: booking.paid ? "Paid" : "Not Paid"
+        //     // };
+        //     bookingDetails.push({
+        //         email: booking.email,
+        //         car: booking.car,
+        //         startDate: booking.startDate,
+        //         endDate: booking.endDate,
+        //         fare: booking.fare,
+        //         payment: booking.paid ? "Paid" : "Not Paid"
+        //     });
+        //     // console.log("Booking Details: ", bookingDetails);
+        // })
+
+        // if(bookings) {
+        //     console.log("BookingDetails = ", bookings)
+        //     res.status(200).json(bookingDetails);
+        // }
+        // else {
+        //     res.status(202).json({bookings: "No booking found."});
+        // }
+    }
+    catch(err) {
+        console.log("Error = ", err);
+    }
+});
 
 app.listen(PORT, () => console.log("App listening in port ", PORT));
