@@ -67,8 +67,8 @@ app.post("/register", async (req, res) => {
                 res.status(202).json({message: "Unable to signup"});
             }
             else {
-                // console.log("New user signed up:", newUser.ops[0].email);
-                res.status(200).send("Sign up successful");
+                console.log("New user signed up:", newUser.ops[0].email);
+                res.status(200).json({message: "Sign up successful"});
                 client.close();
             }                
         } 
@@ -132,7 +132,7 @@ app.post("/book", async (req, res) => {
     // console.log(startDate);
     // console.log(endDate);
     // console.log(fare);
-    // console.log(paid);
+    // console.log("paid = ", paid);
 
     try {
         const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
@@ -145,7 +145,7 @@ app.post("/book", async (req, res) => {
             "startDate": startDate,
             "endDate": endDate,
             "fare": fare,
-            "paid": paid
+            "paid": false
         });
 
         let newBooking = await db.collection("bookings").insertOne(booking);
@@ -177,12 +177,12 @@ app.post("/bookingDetails", async (req, res) => {
             email: email,
             paid: false
         });
-        console.log("BookingDetails = ", booking)
+        // console.log("BookingDetails = ", booking);
         if(booking == null) {
             res.json({message: "No booking"});
         }
         else if(booking) {
-            res.json({message: booking});
+            res.json({booking: booking});
         }
     }
     catch(err) {
@@ -196,10 +196,15 @@ app.post("/bookingDetails", async (req, res) => {
 app.post("/", async (req, res) => {
     // console.log("Put request");
     let email = req.body.email;
+    let car = req.body.car;
+    let totalFare = req.body.totalFare;
+    console.log("email: ", email);
+    console.log("car: ", car);
+    console.log("fare: ", totalFare);
     try {
         const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
         let db = client.db("RentalServices");
-        const filter = {email: email};
+        const filter = {email: email, car: car, fare: totalFare};
         const updateRecord = {
             $set: {
                 paid: true
@@ -207,8 +212,10 @@ app.post("/", async (req, res) => {
         };
 
         let booking = await db.collection("bookings").updateOne(filter, updateRecord);
-        if(booking) {
+        console.log("booking: ", booking.matchedCount);
+        if(booking.matchedCount === 1) {
             // console.log("booked and paid");
+            res.status(200).json({message: "Booking confirmed"});
         }
     }
     catch(err) {
@@ -220,29 +227,42 @@ app.post("/", async (req, res) => {
 
 //Fetching orderID from Razorpay
 app.post("/order", (req, res) => {
+    // console.log("From /order: ", req.body);
     let options = {
         amount: req.body.amount,  // amount in the smallest currency unit
         currency: "INR"
     };
 
     razorpay.orders.create(options, function(err, order) {
-        // console.log(order);
+        // if(err) console.log("Error in payment: ", err);
+        // console.log("order = ", order);
         res.json(order);
     });      
 });
 
 //Checking the status of the payment
-app.post("/", (req, res) => {
-    razorpay.payments.fetch(req.body.razorpay_payment_id)
-    .then((resp) => {
-        if(resp.status == "captured") {
-            return res.status(200).json("Payment successful!");
-        }
-        else {
-            return res.status(404).json("Payment failed!");
-        }
-    })
-});
+// app.post("/", async (req, res) => {
+//     razorpay.payments.fetch(req.body.razorpay_payment_id)
+//     .then(async (resp) => {
+//         if(resp.status == "captured") {
+//             let email = req.body.email;
+//             let car = req.body.car;
+//             let totalFare = req.body.totalFare;
+//             try {
+//                 const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
+//                 let db = client.db("RentalServices");
+
+//                 return res.status(200).json("Payment successful!");
+//             }
+//             catch(err) {
+//                 console.log(err);
+//             }
+//         }
+//         else {
+//             return res.status(404).json("Payment failed!");
+//         }
+//     })
+// });
 
 //Fetch all users data for admin
 app.get("/getUsers", async (req, res) => {
@@ -254,7 +274,7 @@ app.get("/getUsers", async (req, res) => {
         await db.collection("users").find().forEach((user) => {
             allUsers.push(user.email);
         });
-        console.log("All users: ", allUsers);
+        // console.log("All users: ", allUsers);
         if(allUsers) {
             res.status(200).json(allUsers);
         }
@@ -279,10 +299,10 @@ app.get("/bookingHistory", async (req, res) => {
         let bookings = db.collection("bookings").find({}).toArray((err, data) => {
             if(err) console.log("error = ", err);
             else {
+                // console.log("All bookings: ", data);
                 res.status(200).json({"bookings": data});
             }
         });
-        console.log(bookings);
         // bookings.map((booking) => {
         //     // let details = {
         //     //     email: booking.email,
@@ -315,5 +335,28 @@ app.get("/bookingHistory", async (req, res) => {
         console.log("Error = ", err);
     }
 });
+
+//Delete user
+app.post("/deleteUser", async (req, res) => {
+    let email = req.body.email;
+    try {
+        const client = await mongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true});
+        let db = client.db("RentalServices");
+
+        let user = await db.collection("users").deleteOne({email: email});
+        console.log("Deleted user = ", user.deletedCount);
+
+        if(user.deletedCount === 1) {
+            res.status(200).json({message: "User removed"});
+        }
+        else {
+            res.status(202).json({message: "Failed to remove user"});
+        }
+
+    }
+    catch(err) {
+        console.log(err);
+    }
+})
 
 app.listen(PORT, () => console.log("App listening in port ", PORT));
