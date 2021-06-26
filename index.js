@@ -9,7 +9,7 @@ import { Booking } from "./models/Booking.js";
 import Razorpay from "razorpay";
 
 dotenv.config();
-const PORT = process.env.port || 5000;
+const PORT = process.env.PORT || 5000;
 const mongoClient = mongodb.MongoClient;
 const dbUrl = process.env.DBUrl || "mongodb://127.0.0.1:27017";
 
