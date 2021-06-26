@@ -9,7 +9,7 @@ import { Booking } from "./models/Booking.js";
 import Razorpay from "razorpay";
 
 dotenv.config();
-const PORT = process.env.PORT || 5000;
+const port = process.env.PORT || 5000;
 const mongoClient = mongodb.MongoClient;
 const dbUrl = process.env.DBUrl || "mongodb://127.0.0.1:27017";
 
@@ -359,4 +359,4 @@ app.post("/deleteUser", async (req, res) => {
     }
 })
 
-app.listen(PORT, () => console.log("App listening in port ", PORT));
+app.listen(port, () => console.log("App listening in port ", PORT));
