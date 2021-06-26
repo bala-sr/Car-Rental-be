@@ -359,4 +359,4 @@ app.post("/deleteUser", async (req, res) => {
     }
 })
 
-app.listen(port, () => console.log("App listening in port ", PORT));
+app.listen(port, () => console.log("App listening in port ", port));
