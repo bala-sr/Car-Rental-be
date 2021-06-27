@@ -234,7 +234,7 @@ app.post("/order", (req, res) => {
     };
 
     razorpay.orders.create(options, function(err, order) {
-        // if(err) console.log("Error in payment: ", err);
+        if(err) console.log("Error in payment: ", err);
         // console.log("order = ", order);
         res.json(order);
     });      
